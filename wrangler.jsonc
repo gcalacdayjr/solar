@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/wrangler@latest/config-schema.json",
-  "name": "powmr-solar-monitor",
+  "name": "solar",
   "main": "src/index.js",
   "compatibility_date": "2026-11-25",
   "assets": {
@@ -11,6 +11,6 @@
   "vars": {
     "SISELI_BASE_URL": "https://solar.siseli.com",
     "SISELI_TIMEZONE": "Asia/Manila",
-    "ELECTRICITY_RATE_PHP": "12.50"
+    "ELECTRICITY_RATE_PHP": "15.00"
   }
 }
