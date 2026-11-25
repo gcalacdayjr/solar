@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PowMr Solar & Utility Monitor</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="topbar">
+      <div>
+        <h1>PowMr Solar & Utility Monitor</h1>
+        <p id="statusLine" class="muted">Connecting to Siseli cloud...</p>
+      </div>
+      <div class="controls">
+        <label class="inline-control">
+          <span>Date</span>
+          <input type="date" id="dateInput" />
+        </label>
+        <label class="inline-control">
+          <span>PHP/kWh</span>
+          <input type="number" id="rateInput" step="0.1" min="0" value="12.50" />
+        </label>
+        <button id="refreshBtn" type="button">Refresh Now</button>
+      </div>
+    </header>
+
+    <div id="errorBanner" class="error-banner hidden"></div>
+
+    <section class="kpi-grid">
+      <article class="card highlight-utility">
+        <span class="label">Utility Supplied Load (Day)</span>
+        <strong id="kpiUtilHomeKwh" class="value utility">0.00 kWh</strong>
+        <span id="kpiUtilSub" class="sub">Total Grid Import: 0.00 kWh | Cost: PHP 0.00</span>
+      </article>
+
+      <article class="card">
+        <span class="label">Solar PV Live / Day</span>
+        <strong id="kpiPvW" class="value solar">0 W</strong>
+        <span id="kpiPvSub" class="sub">0 V | Generated: 0.00 kWh</span>
+      </article>
+
+      <article class="card">
+        <span class="label">Battery Bank</span>
+        <strong id="kpiBatSoc" class="value battery">0 %</strong>
+        <span id="kpiBatSub" class="sub">0 V | 0 W</span>
+      </article>
+
+      <article class="card">
+        <span class="label">AC Home Load Live / Day</span>
+        <strong id="kpiLoadW" class="value load">0 W</strong>
+        <span id="kpiLoadSub" class="sub">Consumed: 0.00 kWh | Solar Share: 0%</span>
+      </article>
+
+      <article class="card">
+        <span class="label">Grid Import Live</span>
+        <strong id="kpiGridW" class="value grid">0 W</strong>
+        <span id="kpiGridSub" class="sub">Grid Voltage: 0 V | Saved: PHP 0.00</span>
+      </article>
+
+      <article class="card">
+        <span class="label">Inverter Status</span>
+        <strong id="kpiTemp" class="value">0 C</strong>
+        <span id="kpiMode" class="sub">Mode: --</span>
+      </article>
+    </section>
+
+    <section class="card">
+      <div class="chart-header">
+        <h2>Daily Power Curve (Watts)</h2>
+        <div class="legend">
+          <span><i class="dot solar-bg"></i>PV Solar</span>
+          <span><i class="dot load-bg"></i>Home Load</span>
+          <span><i class="dot utility-bg"></i>Grid Import</span>
+          <span><i class="dot battery-bg"></i>Battery</span>
+        </div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="powerChart" height="300"></canvas>
+      </div>
+      <p id="chartHoverInfo" class="muted hover-readout">Hover or tap on the chart to inspect 5-minute readings.</p>
+    </section>
+
+    <section class="card">
+      <h2>5-Minute Telemetry Intervals</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>PV (W)</th>
+              <th>Home Load (W)</th>
+              <th>Grid Import (W)</th>
+              <th>Battery (%)</th>
+              <th>Battery (V)</th>
+              <th>Temp (C)</th>
+            </tr>
+          </thead>
+          <tbody id="logsBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>
