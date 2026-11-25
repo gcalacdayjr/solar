@@ -13,12 +13,21 @@ export class SiseliClient {
       "Content-Type": "application/json",
       "Accept": "application/json",
       "IOT-Time-Zone": this.config.timezone,
+      "IOT-Language": this.config.language,
       "User-Agent": "Mozilla/5.0 (compatible; PowMrSolarMonitor/1.0)",
+      ...this.config.extraHeaders,
     };
+
+    if (this.config.openAppId) {
+      headers["IOT-Open-AppID"] = this.config.openAppId;
+    }
+
     if (token) {
       headers["Authorization"] = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
       headers["token"] = token;
+      headers["IOT-Token"] = token;
     }
+
     return headers;
   }
 
@@ -43,6 +52,7 @@ export class SiseliClient {
       json?.token ||
       json?.accessToken ||
       headers.get("token") ||
+      headers.get("iot-token") ||
       headers.get("authorization") ||
       ""
     );
@@ -56,6 +66,10 @@ export class SiseliClient {
     if (!forceRefresh) {
       const cached = await this.cache.getJson(this.tokenCacheKey);
       if (cached && cached.token) return cached.token;
+    }
+
+    if (!this.config.openAppId) {
+      throw new Error("Missing SISELI_OPEN_APP_ID in Cloudflare Worker Variables/Secrets.");
     }
 
     const hashedPassword = await formatLoginPassword(
