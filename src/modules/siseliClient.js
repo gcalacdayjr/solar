@@ -1,3 +1,5 @@
+import { formatLoginPassword } from "./hashUtil.js";
+
 export class SiseliClient {
   constructor(config, cacheStore) {
     this.config = config;
@@ -28,6 +30,24 @@ export class SiseliClient {
     return `${this.config.baseUrl}${cleanPath}`;
   }
 
+  extractToken(json, headers) {
+    const data = json?.data;
+    if (typeof data === "string" && data.length > 10) {
+      return data;
+    }
+    return (
+      data?.token ||
+      data?.accessToken ||
+      data?.access_token ||
+      data?.jwt ||
+      json?.token ||
+      json?.accessToken ||
+      headers.get("token") ||
+      headers.get("authorization") ||
+      ""
+    );
+  }
+
   async login(forceRefresh = false) {
     if (this.config.directToken) {
       return this.config.directToken;
@@ -38,33 +58,37 @@ export class SiseliClient {
       if (cached && cached.token) return cached.token;
     }
 
-    const candidates = [
-      this.config.loginPath,
-      "/prod-api/login",
-      "/api/user/login",
-      "/api/login",
-      "/apis/auth/login",
-      "/apis/user/login",
-    ].filter(Boolean);
+    const hashedPassword = await formatLoginPassword(
+      this.config.password,
+      this.config.passwordHashMode
+    );
 
-    const uniquePaths = [...new Set(candidates)];
+    const payloads = [
+      {
+        user: this.config.username,
+        password: hashedPassword,
+      },
+      {
+        user: this.config.username,
+        userName: this.config.username,
+        username: this.config.username,
+        account: this.config.username,
+        password: hashedPassword,
+      },
+    ];
+
+    const targetUrl = this.resolveUrl(this.config.loginPath);
     const attempts = [];
 
-    for (const path of uniquePaths) {
-      const targetUrl = this.resolveUrl(path);
+    for (const body of payloads) {
       const res = await fetch(targetUrl, {
         method: "POST",
         headers: this.buildHeaders(),
-        body: JSON.stringify({
-          userName: this.config.username,
-          username: this.config.username,
-          account: this.config.username,
-          password: this.config.password,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
-        attempts.push(`${path} (HTTP ${res.status})`);
+        attempts.push(`${this.config.loginPath} (HTTP ${res.status})`);
         continue;
       }
 
@@ -72,27 +96,20 @@ export class SiseliClient {
       try {
         json = await res.json();
       } catch {
-        attempts.push(`${path} (Non-JSON response)`);
+        attempts.push(`${this.config.loginPath} (Non-JSON response)`);
         continue;
       }
 
-      const data = json.data || json;
-      const token =
-        data.token ||
-        data.accessToken ||
-        data.access_token ||
-        res.headers.get("token") ||
-        res.headers.get("authorization");
-
+      const token = this.extractToken(json, res.headers);
       if (token) {
         await this.cache.putJson(this.tokenCacheKey, { token }, 4 * 60 * 60);
         return token;
       }
 
-      attempts.push(`${path} (${json.msg || json.message || "No token in body"})`);
+      attempts.push(`${this.config.loginPath} (${json.msg || json.message || JSON.stringify(json)})`);
     }
 
-    throw new Error(`Login failed on all endpoints: ${attempts.join(" | ")}`);
+    throw new Error(`Siseli login failed: ${attempts.join(" | ")}`);
   }
 
   async post(path, body = {}, retry = true) {
@@ -108,7 +125,14 @@ export class SiseliClient {
       return this.post(path, body, false);
     }
 
-    const json = await res.json();
+    const text = await res.text();
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new Error(`Endpoint ${path} returned HTTP ${res.status} non-JSON response`);
+    }
+
     if ((json.code === 401 || json.code === 1002) && retry && !this.config.directToken) {
       await this.login(true);
       return this.post(path, body, false);
@@ -145,7 +169,7 @@ export class SiseliClient {
       const stationRes = await this.post(this.config.stationListPath, { pageNo: 1, pageSize: 20 });
       const list = stationRes?.data?.records || stationRes?.data?.list || stationRes?.data || [];
       if (!Array.isArray(list) || list.length === 0) {
-        throw new Error("No solar stations found on this Sun House / Siseli account.");
+        throw new Error(`No solar stations returned from ${this.config.stationListPath}: ${JSON.stringify(stationRes)}`);
       }
       stationId = String(list[0].stationId || list[0].id);
     }
