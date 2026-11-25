@@ -1,16 +1,27 @@
 export function getConfig(env) {
-  if (!env.SISELI_USERNAME || !env.SISELI_PASSWORD) {
-    throw new Error("Missing SISELI_USERNAME or SISELI_PASSWORD in Cloudflare Worker Secrets.");
+  const hasCredentials = Boolean(env.SISELI_USERNAME && env.SISELI_PASSWORD);
+  const hasDirectToken = Boolean(env.SISELI_TOKEN);
+
+  if (!hasCredentials && !hasDirectToken) {
+    throw new Error("Missing SISELI_USERNAME and SISELI_PASSWORD (or SISELI_TOKEN) in Cloudflare Worker Secrets.");
   }
 
   return {
     baseUrl: (env.SISELI_BASE_URL || "https://solar.siseli.com").replace(/\/$/, ""),
     timezone: env.SISELI_TIMEZONE || "Asia/Manila",
-    username: env.SISELI_USERNAME,
-    password: env.SISELI_PASSWORD,
+    username: env.SISELI_USERNAME || "",
+    password: env.SISELI_PASSWORD || "",
+    directToken: env.SISELI_TOKEN || "",
+    loginPath: env.SISELI_LOGIN_PATH || "",
+    stationListPath: env.SISELI_STATION_LIST_PATH || "/apis/station/list",
+    deviceListPath: env.SISELI_DEVICE_LIST_PATH || "/apis/station/device/list",
+    latestPath: env.SISELI_LATEST_PATH || "/apis/remote/device/timeSeries/latest/v1",
+    flowPath: env.SISELI_FLOW_PATH || "/apis/remote/device/energy/flow/v1",
+    seriesPath: env.SISELI_SERIES_PATH || "/apis/remote/device/timeSeries/v1",
+    seriesListPath: env.SISELI_SERIES_LIST_PATH || "/apis/remote/device/timeSeries/list/v1",
     stationId: env.SISELI_STATION_ID || "",
     deviceId: env.SISELI_DEVICE_ID || "",
     dashboardSecret: env.DASHBOARD_SECRET || "",
-    defaultRatePhp: Number(env.ELECTRICITY_RATE_PHP || "12.50"),
+    defaultRatePhp: Number(env.ELECTRICITY_RATE_PHP || "15.00"),
   };
 }
