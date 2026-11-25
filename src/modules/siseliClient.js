@@ -2,8 +2,8 @@ export class SiseliClient {
   constructor(config, cacheStore) {
     this.config = config;
     this.cache = cacheStore;
-    this.tokenCacheKey = `token:${config.username}`;
-    this.idsCacheKey = `ids:${config.username}`;
+    this.tokenCacheKey = `token:${config.username || "direct"}`;
+    this.idsCacheKey = `ids:${config.username || "direct"}`;
   }
 
   buildHeaders(token = "") {
@@ -20,17 +20,39 @@ export class SiseliClient {
     return headers;
   }
 
+  resolveUrl(pathOrUrl) {
+    if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) {
+      return pathOrUrl;
+    }
+    const cleanPath = pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`;
+    return `${this.config.baseUrl}${cleanPath}`;
+  }
+
   async login(forceRefresh = false) {
+    if (this.config.directToken) {
+      return this.config.directToken;
+    }
+
     if (!forceRefresh) {
       const cached = await this.cache.getJson(this.tokenCacheKey);
       if (cached && cached.token) return cached.token;
     }
 
-    const endpoints = ["/apis/user/login", "/apis/login"];
-    let lastError = "Unable to authenticate with solar.siseli.com";
+    const candidates = [
+      this.config.loginPath,
+      "/prod-api/login",
+      "/api/user/login",
+      "/api/login",
+      "/apis/auth/login",
+      "/apis/user/login",
+    ].filter(Boolean);
 
-    for (const path of endpoints) {
-      const res = await fetch(`${this.config.baseUrl}${path}`, {
+    const uniquePaths = [...new Set(candidates)];
+    const attempts = [];
+
+    for (const path of uniquePaths) {
+      const targetUrl = this.resolveUrl(path);
+      const res = await fetch(targetUrl, {
         method: "POST",
         headers: this.buildHeaders(),
         body: JSON.stringify({
@@ -42,11 +64,18 @@ export class SiseliClient {
       });
 
       if (!res.ok) {
-        lastError = `Login HTTP ${res.status} on ${path}`;
+        attempts.push(`${path} (HTTP ${res.status})`);
         continue;
       }
 
-      const json = await res.json();
+      let json;
+      try {
+        json = await res.json();
+      } catch {
+        attempts.push(`${path} (Non-JSON response)`);
+        continue;
+      }
+
       const data = json.data || json;
       const token =
         data.token ||
@@ -60,27 +89,27 @@ export class SiseliClient {
         return token;
       }
 
-      lastError = json.msg || json.message || "Token missing in Siseli response";
+      attempts.push(`${path} (${json.msg || json.message || "No token in body"})`);
     }
 
-    throw new Error(lastError);
+    throw new Error(`Login failed on all endpoints: ${attempts.join(" | ")}`);
   }
 
   async post(path, body = {}, retry = true) {
     const token = await this.login(false);
-    const res = await fetch(`${this.config.baseUrl}${path}`, {
+    const res = await fetch(this.resolveUrl(path), {
       method: "POST",
       headers: this.buildHeaders(token),
       body: JSON.stringify(body),
     });
 
-    if (res.status === 401 && retry) {
+    if (res.status === 401 && retry && !this.config.directToken) {
       await this.login(true);
       return this.post(path, body, false);
     }
 
     const json = await res.json();
-    if ((json.code === 401 || json.code === 1002) && retry) {
+    if ((json.code === 401 || json.code === 1002) && retry && !this.config.directToken) {
       await this.login(true);
       return this.post(path, body, false);
     }
@@ -113,7 +142,7 @@ export class SiseliClient {
     let deviceId = this.config.deviceId;
 
     if (!stationId) {
-      const stationRes = await this.post("/apis/station/list", { pageNo: 1, pageSize: 20 });
+      const stationRes = await this.post(this.config.stationListPath, { pageNo: 1, pageSize: 20 });
       const list = stationRes?.data?.records || stationRes?.data?.list || stationRes?.data || [];
       if (!Array.isArray(list) || list.length === 0) {
         throw new Error("No solar stations found on this Sun House / Siseli account.");
@@ -122,7 +151,7 @@ export class SiseliClient {
     }
 
     if (!deviceId) {
-      const devRes = await this.post("/apis/station/device/list", { stationId });
+      const devRes = await this.post(this.config.deviceListPath, { stationId });
       const devices = devRes?.data?.records || devRes?.data?.list || devRes?.data || [];
       if (Array.isArray(devices) && devices.length > 0) {
         deviceId = String(devices[0].deviceId || devices[0].id || devices[0].sn);
@@ -142,16 +171,16 @@ export class SiseliClient {
     const endTime = `${dateStr} 23:59:59`;
 
     const [latestRes, flowRes, seriesV1Res, seriesListRes] = await Promise.all([
-      this.safePost("/apis/remote/device/timeSeries/latest/v1", { stationId, deviceId }),
-      this.safePost("/apis/remote/device/energy/flow/v1", { stationId, deviceId }),
-      this.safePost("/apis/remote/device/timeSeries/v1", {
+      this.safePost(this.config.latestPath, { stationId, deviceId }),
+      this.safePost(this.config.flowPath, { stationId, deviceId }),
+      this.safePost(this.config.seriesPath, {
         stationId,
         deviceId,
         date: dateStr,
         startTime,
         endTime,
       }),
-      this.safePost("/apis/remote/device/timeSeries/list/v1", {
+      this.safePost(this.config.seriesListPath, {
         stationId,
         deviceId,
         date: dateStr,
