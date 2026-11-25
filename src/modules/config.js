@@ -1,3 +1,13 @@
+function parseExtraHeaders(raw) {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 export function getConfig(env) {
   const hasCredentials = Boolean(env.SISELI_USERNAME && env.SISELI_PASSWORD);
   const hasDirectToken = Boolean(env.SISELI_TOKEN);
@@ -9,6 +19,9 @@ export function getConfig(env) {
   return {
     baseUrl: (env.SISELI_BASE_URL || "https://solar.siseli.com").replace(/\/$/, ""),
     timezone: env.SISELI_TIMEZONE || "Asia/Manila",
+    language: env.SISELI_LANGUAGE || "en_US",
+    openAppId: (env.SISELI_OPEN_APP_ID || "").trim(),
+    extraHeaders: parseExtraHeaders(env.SISELI_EXTRA_HEADERS),
     username: env.SISELI_USERNAME || "",
     password: env.SISELI_PASSWORD || "",
     passwordHashMode: env.SISELI_PASSWORD_HASH_MODE || "auto",
