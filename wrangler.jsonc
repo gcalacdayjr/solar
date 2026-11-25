@@ -11,6 +11,7 @@
   "vars": {
     "SISELI_BASE_URL": "https://solar.siseli.com",
     "SISELI_TIMEZONE": "Asia/Manila",
+    "SISELI_OPEN_APP_ID": "wx22020b47fb0a4a01",
     "ELECTRICITY_RATE_PHP": "15.00"
   }
 }
