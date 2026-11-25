@@ -15,6 +15,9 @@ export class SiseliClient {
       "IOT-Time-Zone": this.config.timezone,
       "IOT-Language": this.config.language,
       "User-Agent": "Mozilla/5.0 (compatible; PowMrSolarMonitor/1.0)",
+      // Siseli open-API requests are nonce/timestamp based (login returned "IOT-Open-Nonce missing").
+      "IOT-Open-Nonce": crypto.randomUUID().replace(/-/g, ""),
+      "IOT-Open-Timestamp": String(Date.now()),
       ...this.config.extraHeaders,
     };
 
